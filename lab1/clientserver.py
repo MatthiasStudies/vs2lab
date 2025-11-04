@@ -116,14 +116,18 @@ class Server:
                 self.listen()
             except socket.timeout:
                 pass  # ignore timeouts
+            except OSError:
+                pass  # ignore errors due to closed socket
+            except Exception as e:
+                self._logger.error(f"Error in server loop: {e}")
         self.sock.close()
-        self._logger.info("Server down.")
+        self._logger.info("Server down")
 
     def stop(self):
         """ Stop server """
         self._serving = False
         self.sock.close()
-        self._logger.info("Server stopped.")
+        self._logger.info("Server stopped")
 
 
 class Client:
