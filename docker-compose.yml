@@ -1,0 +1,17 @@
+services:
+  # This is the name of your service within Docker Compose
+  redis:
+    # We use the official Redis image from Docker Hub.
+    # The 'alpine' tag is a good choice as it's very lightweight.
+    image: redis:alpine
+    
+    # This gives your container a friendly, predictable name
+    container_name: vs2lab-redis
+
+    restart: unless-stopped
+    
+    # This maps a port from your host machine to the container.
+    # Format: "HOST_PORT:CONTAINER_PORT"
+    # 6379 is the default port for Redis.
+    ports:
+      - "6379:6379"
