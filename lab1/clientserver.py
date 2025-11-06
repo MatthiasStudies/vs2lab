@@ -79,7 +79,13 @@ class Server:
                     "number": number
                 })
             case "GETALL":
-                return response(self.db)
+                resp = []
+                for (name, number) in self.db.items():
+                    resp.append({
+                        "name": name,
+                        "number": number
+                    })
+                return response(resp)
             case _:
                 return {"error": "Invalid query type"}
 

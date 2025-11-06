@@ -11,7 +11,7 @@
       <sourceFolder url="file://$MODULE_DIR$/lab4/chord" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.14 (vs2lab)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="uv (vs2lab)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="TestRunnerService">
