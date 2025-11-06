@@ -11,8 +11,30 @@ from context import lab_logging
 
 lab_logging.setup(stream_level=logging.INFO)
 
+big_data_list =    {f'User{i}': f'{i:010d}' for i in range(1000)}
 
-class TestEchoService(unittest.TestCase):
+
+
+class TestDialupServiceLoad(unittest.TestCase):
+    _server = clientserver.Server(big_data_list)  # create single server in class variable
+    _server_thread = threading.Thread(target=_server.serve)  # define thread for running server
+
+    @classmethod
+    def setUpClass(cls):
+        cls._server_thread.start()  # start server loop in a thread (called only once)
+
+    def setUp(self):
+        super().setUp()
+        self.client = clientserver.Client()  # create new client for each test
+
+    def test_load_getall(self):
+        response = self.client.call("GETALL")
+        self.assertEqual(response, {
+            "data": big_data_list,
+        })
+
+
+class TestDialupService(unittest.TestCase):
     """The test"""
     _server = clientserver.Server({
         "John Doe": "123456789",
@@ -46,7 +68,7 @@ class TestEchoService(unittest.TestCase):
 
     def test_returns_the_number_for_a_known_name(self):
         response = self.client.call("GET", {"name": "John Doe"})
-        self.assertEqual(response, {"data":{'name': 'John Doe', 'number': '123456789'}})
+        self.assertEqual({"data":{'name': 'John Doe', 'number': '123456789'}}, response)
 
     def test_returns_all_known_names_and_numbers(self):
         response = self.client.call("GETALL")

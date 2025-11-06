@@ -5,6 +5,7 @@ import json
 import logging
 import socket
 from abc import ABC
+from pprint import pprint
 from typing import TypedDict, Literal, Any
 
 import const_cs
@@ -70,7 +71,9 @@ class Server:
             case "GET":
                 (name,) = require_data(data, "name")
                 lookup_name = str(name).strip()
-                number = self.db.get(lookup_name)
+                pprint(self.db)
+                self._logger.info(f"Handling GET request for {lookup_name}")
+                number = self.db.get(name)
                 if number is None:
                     return {"error": "Name not found"}
                 return response({

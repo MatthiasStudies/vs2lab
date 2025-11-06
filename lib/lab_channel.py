@@ -2,6 +2,7 @@ import logging
 import os
 import pickle
 import random
+from typing import Any
 
 import redis
 
@@ -213,7 +214,7 @@ class Channel:
         for destination in members:
             self.channel.rpush([self.__queue_key(caller, destination)], pickle.dumps(message))
 
-    def receive_from_any(self, timeout: int = 0) -> tuple:
+    def receive_from_any(self, timeout: int = 0) -> tuple[str, Any] | None:
         """
         Make a blocking request to take the next message off any of the callers' incoming queues.
         :param timeout: optional timeout for blocking read.
