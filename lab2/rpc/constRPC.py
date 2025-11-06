@@ -1,3 +1,3 @@
-OK = '1'
+ACK = '1'
 APPEND = '2'
 RESULT = '3'

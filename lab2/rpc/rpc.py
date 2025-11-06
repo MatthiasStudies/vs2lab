@@ -36,14 +36,14 @@ class Client:
         self.chan.send_to(self.server, msglst)  # send msg to server
         msgrcv = self.chan.receive_from(self.server)  # wait for response
 
-        assert msgrcv[1] == constRPC.OK
+        assert msgrcv[1] == constRPC.ACK
 
         def wait():
             rcv = self.chan.receive_from(self.server)  # wait for response
             callback_on_result(rcv[1])  # call the callback with the result
 
         threading.Thread(target=wait, daemon=True).start()
-        return constRPC.OK
+        return constRPC.ACK
 
 
 class Server:
@@ -65,7 +65,7 @@ class Server:
             self.chan.send_to({client}, result)
 
         threading.Thread(target=run, daemon=True).start()
-        return constRPC.OK
+        return constRPC.ACK
 
 
     def run(self):

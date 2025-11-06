@@ -18,17 +18,20 @@ result: rpc.DBList | None = None
 def on_response(_result):
     global result
     result = _result
-    print("Callback Response:")
-    pprint(result)
+    print("\nCallback Response:", end=" ")
+    # pprint(result)
+    print("Result: {}".format(result.value))
 
-base_list = rpc.DBList({'foo'})
 
 start = time.time()
-response = cl.append('bar', base_list, on_response)
-print("Response:", response)
+base_list = rpc.DBList({'foo'})
+
+ack = cl.append('bar', base_list, on_response)
+
+print("ACK:", ack)
 
 print("Waiting for result", end='', flush=True)
-while result is None:
+while True:
     print('.', end='', flush=True)
     time.sleep(0.5)
 
