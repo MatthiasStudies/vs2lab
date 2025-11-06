@@ -12,8 +12,6 @@ from context import lab_logging
 
 lab_logging.setup(stream_level=logging.INFO)  # init loging channels for the lab
 
-# pylint: disable=logging-not-lazy, line-too-long
-
 
 type QueryType = Literal["GET", "GETALL"]
 
@@ -71,11 +69,12 @@ class Server:
         match query_type:
             case "GET":
                 (name,) = require_data(data, "name")
-                number = self.db.get(name)
+                lookup_name = str(name).strip()
+                number = self.db.get(lookup_name)
                 if number is None:
                     return {"error": "Name not found"}
                 return response({
-                    "name": name,
+                    "name": lookup_name,
                     "number": number
                 })
             case "GETALL":
