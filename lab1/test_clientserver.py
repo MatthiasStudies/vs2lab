@@ -50,7 +50,12 @@ class TestEchoService(unittest.TestCase):
 
     def test_returns_all_known_names_and_numbers(self):
         response = self.client.call("GETALL")
-        self.assertEqual(response, {"data":{'John Doe': '123456789', 'Jane Doe': '1122334455'}})
+        self.assertEqual(response, {
+            "data":[
+                {'name': 'John Doe', 'number': '123456789'},
+                {'name': 'Jane Doe', 'number': '1122334455'}
+            ],
+        })
 
 
     def tearDown(self):
