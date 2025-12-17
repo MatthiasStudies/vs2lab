@@ -10,6 +10,7 @@ Chord Application
 import logging
 import sys
 import multiprocessing as mp
+import random
 
 import chordnode as chord_node
 import constChord
@@ -29,7 +30,27 @@ class DummyChordClient:
         self.channel.bind(self.node_id)
 
     def run(self):
-        print("Implement me pls...")
+
+        # Hier soll eine LOOKUP Anfrage nach einem zufälligen validen Schlüssel an einen ebenfalls zufälligen existierenden Knoten erfolgen und der gefundene Name ausgegeben werden.
+
+        all_nodes = list(self.channel.channel.smembers('node'))
+        if not all_nodes:
+            print("No nodes in the chord ring.")
+            return
+
+        key_to_find = random.randrange(0, 2 ** self.channel.n_bits)
+        start_node = random.choice(all_nodes).decode()
+
+        print(f"Client {self.node_id} looking up key {key_to_find} starting at node {start_node}")
+        self.channel.send_to([start_node], (constChord.LOOKUP_REQ, str(key_to_find)))
+        response = self.channel.receive_from([start_node])
+        if response[1][0] == constChord.LOOKUP_REP:
+            found_node = response[1][1]
+            print(f"Key {key_to_find} found at node {found_node}")
+        else:
+            print("Unexpected response received.")
+            print(response)
+
         self.channel.send_to(  # a final multicast
             {i.decode() for i in list(self.channel.channel.smembers('node'))},
             constChord.STOP)

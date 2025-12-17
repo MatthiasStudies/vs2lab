@@ -150,13 +150,34 @@ class ChordNode:
                 self.logger.info("Node {:04n} received LOOKUP {:04n} from {:04n}."
                                  .format(self.node_id, int(request[1]), int(sender)))
 
-                # look up and return local successor 
-                next_id: int = self.local_successor_node(request[1])
-                self.channel.send_to([sender], (constChord.LOOKUP_REP, next_id))
+                key = int(request[1])
+                succ_node = self.local_successor_node(key)
+                if succ_node == self.node_id:
+                    # I am the successor
+                    self.logger.info("Node {:04n} is the successor of key {:04n}."
+                                     .format(self.node_id, key))
+                    self.channel.send_to([sender],
+                                         (constChord.LOOKUP_REP, str(self.node_id)))
+                else:
+                    # Forward the request to the best known node
+                    self.logger.info("Node {:04n} forwards LOOKUP {:04n} to {:04n}."
+                                     .format(self.node_id, key, succ_node))
+                    self.channel.send_to([str(succ_node)],
+                                         (constChord.LOOKUP_REQ, str(key)))
+                    # Wait for the reply
+                    while True:
+                        response = self.channel.receive_from([str(succ_node)])
+                        if response[1][0] == constChord.LOOKUP_REP:
+                            self.logger.info("Node {:04n} received LOOKUP_REP {:04n} from {:04n}."
+                                             .format(self.node_id, int(response[1][1]), int(succ_node)))
+                            # Send the reply back to the original requester
+                            self.channel.send_to([sender],
+                                                 (constChord.LOOKUP_REP, response[1][1]))
+                            break
 
                 # Finally do a sanity check
-                if not self.channel.exists(next_id):  # probe for existence
-                    self.delete_node(next_id)  # purge disappeared node
+                if not self.channel.exists(succ_node):  # probe for existence
+                    self.delete_node(succ_node)  # purge disappeared node
 
             elif request[0] == constChord.JOIN:
                 # Join request (the node was already registered above)
