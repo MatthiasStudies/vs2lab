@@ -30,15 +30,12 @@ class DummyChordClient:
         self.channel.bind(self.node_id)
 
     def run(self):
-
-        # Hier soll eine LOOKUP Anfrage nach einem zufälligen validen Schlüssel an einen ebenfalls zufälligen existierenden Knoten erfolgen und der gefundene Name ausgegeben werden.
-
         all_nodes = list(self.channel.channel.smembers('node'))
         if not all_nodes:
             print("No nodes in the chord ring.")
             return
 
-        key_to_find = random.randrange(0, 2 ** self.channel.n_bits)
+        key_to_find = random.randrange(0, 2 ** self.channel.n_bits - 1)
         start_node = random.choice(all_nodes).decode()
 
         print(f"Client {self.node_id} looking up key {key_to_find} starting at node {start_node}")
