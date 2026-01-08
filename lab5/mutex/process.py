@@ -1,9 +1,14 @@
 import logging
 import random
+import threading
 import time
 
 from constMutex import ENTER, RELEASE, ALLOW, ACTIVE
+from lab5.mutex.constMutex import HEARTBEAT
 
+HEARTBEAT_TIMEOUT = 10
+HEARTBEAT_INTERVALL = 5
+HEARTBEAT_CHECK_INTERVALL = 2
 
 class Process:
     """
@@ -46,6 +51,7 @@ class Process:
         self.peer_name = 'unassigned'  # The original peer name
         self.peer_type = 'unassigned'  # A flag indicating behavior pattern
         self.logger = logging.getLogger("vs2lab.lab5.mutex.process.Process")
+        self.process_last_time: dict[int, float] = {}
 
     def __mapid(self, id='-1'):
         # format channel member address
@@ -121,6 +127,8 @@ class Process:
                 # assure release requester indeed has access (his ENTER is first in queue)
                 assert self.queue[0][1] == msg[1] and self.queue[0][2] == ENTER, 'State error: inconsistent remote RELEASE'
                 del (self.queue[0])  # Just remove first message
+            elif msg[2] == HEARTBEAT:
+                self.__receive_heartbeat(msg)
 
             self.__cleanup_queue()  # Finally sort and cleanup the queue
         else:
@@ -138,6 +146,9 @@ class Process:
         # sort string elements by numerical order
         self.all_processes.sort(key=lambda x: int(x))
 
+        for proc in self.all_processes:
+            self.process_last_time[proc] = time.time() # optimistic assumption
+
         self.other_processes = list(self.channel.subgroup('proc'))
         self.other_processes.remove(self.process_id)
 
@@ -147,7 +158,43 @@ class Process:
         self.logger.info("{} joined channel as {}.".format(
             peer_name, self.__mapid()))
 
+    def __do_heart_beat(self):
+        while True:
+            self.channel.send_to(self.all_processes, (self.clock, self.process_id, HEARTBEAT))
+            time.sleep(HEARTBEAT_INTERVALL)
+
+
+    def __receive_heartbeat(self, msg):
+        assert msg[2] == HEARTBEAT, 'State error: inconsistent heartbeat message'
+        self.process_last_time[msg[1]] = time.time()
+
+    def __check_alive_processes(self):
+        now = time.time()
+        for proc in self.all_processes:
+            if proc == self.process_id: continue
+
+            process_time = self.process_last_time.get(proc, 0)
+            delta = now - process_time
+            did_timeout = delta > HEARTBEAT_TIMEOUT
+            if did_timeout:
+                self.logger.info("{} detected that {} is dead (last heartbeat {} seconds ago)."
+                                    .format(self.__mapid(), self.__mapid(proc), int(delta)))
+                self.all_processes.remove(proc)
+                self.other_processes.remove(proc)
+
+                # Remove all messages from dead process in local queue
+                self.queue = [msg for msg in self.queue if msg[1] != proc]
+                self.__cleanup_queue()
+
+    def __do_check_alive_processes(self):
+        while True:
+            self.__check_alive_processes()
+            time.sleep(HEARTBEAT_CHECK_INTERVALL)
+
     def run(self):
+        threading.Thread(target=self.__do_heart_beat, daemon=True).start()
+        threading.Thread(target=self.__do_check_alive_processes, daemon=True).start()
+
         while True:
             # Enter the critical section if
             # 1) there are more than one process left and
@@ -158,6 +205,8 @@ class Process:
                     random.choice([True, False]):
                 self.logger.debug("{} wants to ENTER CS at CLOCK {}."
                                   .format(self.__mapid(), self.clock))
+                print("{} wants to ENTER CS at CLOCK {}."
+                      .format(self.__mapid(), self.clock))
 
                 self.__request_to_enter()
                 while not self.__allowed_to_enter():
