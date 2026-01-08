@@ -2,10 +2,7 @@ import zmq
 import multiprocessing
 import time
 
-NUM_MAPPERS = 3
-NUM_REDUCERS = 2
-SPLITTER_PORT = 5555
-REDUCER_PORTS = [5556, 5557]
+from const import *
 
 def splitter(filename):
     context = zmq.Context()
@@ -55,41 +52,10 @@ def mapper():
         sock.close()
     context.term()
 
-def reducer(reducer_id, port):
-    context = zmq.Context()
-    receiver = context.socket(zmq.PULL)
-    receiver.bind(f"tcp://*:{port}")
 
-    counts = {}
-    mappers_finished_count = 0
-
-    while True:
-        message = receiver.recv_string()
-
-        if message == "__EOF__":
-            mappers_finished_count += 1
-            if mappers_finished_count == NUM_MAPPERS:
-                break
-        else:
-            word = message
-            counts[word] = counts.get(word, 0) + 1
-            print(f" -> [{reducer_id}] '{word}': {counts[word]}")
-
-    print(f"\nReducer {reducer_id} final wordcount:")
-    for word, count in counts.items():
-        print(f"{word}: {count}")
-    print("----------------------------------\n")
-
-    receiver.close()
-    context.term()
 
 if __name__ == "__main__":
     processes = []
-
-    for i in range(NUM_REDUCERS):
-        p = multiprocessing.Process(target=reducer, args=(i, REDUCER_PORTS[i]))
-        p.start()
-        processes.append(p)
 
     for i in range(NUM_MAPPERS):
         p = multiprocessing.Process(target=mapper)
