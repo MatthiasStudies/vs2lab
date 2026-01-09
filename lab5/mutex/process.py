@@ -52,6 +52,7 @@ class Process:
         self.peer_type = 'unassigned'  # A flag indicating behavior pattern
         self.logger = logging.getLogger("vs2lab.lab5.mutex.process.Process")
         self.process_last_time: dict[int, float] = {}
+        self.last_message_sent = 0
 
     def __mapid(self, id='-1'):
         # format channel member address
@@ -75,6 +76,7 @@ class Process:
         self.queue.append(request_msg)  # Append request to queue
         self.__cleanup_queue()  # Sort the queue
         self.channel.send_to(self.other_processes, request_msg)  # Send request
+        self.last_message_sent = time.time()
 
     def __allow_to_enter(self, requester):
         self.clock = self.clock + 1  # Increment clock value
@@ -92,6 +94,7 @@ class Process:
         msg = (self.clock, self.process_id, RELEASE)
         # Multicast release notification
         self.channel.send_to(self.other_processes, msg)
+        self.last_message_sent = time.time()
 
     def __allowed_to_enter(self):
         # See who has sent a message (the set will hold at most one element per sender)
@@ -124,12 +127,12 @@ class Process:
             elif msg[2] == ALLOW:
                 self.queue.append(msg)  # Append an ALLOW
             elif msg[2] == RELEASE:
-                # assure release requester indeed has access (his ENTER is first in queue)
-                assert self.queue[0][1] == msg[1] and self.queue[0][2] == ENTER, 'State error: inconsistent remote RELEASE'
-                del (self.queue[0])  # Just remove first message
-            elif msg[2] == HEARTBEAT:
-                self.__receive_heartbeat(msg)
+                if len(self.queue) != 0:
+                    # assure release requester indeed has access (his ENTER is first in queue)
+                    assert self.queue[0][1] == msg[1] and self.queue[0][2] == ENTER, 'State error: inconsistent remote RELEASE'
+                    del (self.queue[0])  # Just remove first message
 
+            self.__receive_heartbeat(msg)
             self.__cleanup_queue()  # Finally sort and cleanup the queue
         else:
             self.logger.info("{} timed out on RECEIVE. Local queue: {}".
@@ -160,12 +163,13 @@ class Process:
 
     def __do_heart_beat(self):
         while True:
-            self.channel.send_to(self.all_processes, (self.clock, self.process_id, HEARTBEAT))
+            # last_heartbeat_delta = time.time() - self.last_message_sent
+            # if last_heartbeat_delta > HEARTBEAT_TIMEOUT:
+            self.channel.send_to(self.other_processes, (self.clock, self.process_id, HEARTBEAT))
             time.sleep(HEARTBEAT_INTERVALL)
 
 
     def __receive_heartbeat(self, msg):
-        assert msg[2] == HEARTBEAT, 'State error: inconsistent heartbeat message'
         self.process_last_time[msg[1]] = time.time()
 
     def __check_alive_processes(self):

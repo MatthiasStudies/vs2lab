@@ -43,7 +43,7 @@ def mapper():
 
         words = message.split()
         for word in words:
-            reducer_idx = hash(word) % NUM_REDUCERS
+            reducer_idx = sum([ord(c) for c in word]) % NUM_REDUCERS
             target_socket = reducer_sockets[reducer_idx]
             target_socket.send_string(word)
 
