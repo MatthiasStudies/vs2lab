@@ -277,6 +277,32 @@ eines Teilnehmers) und senden entsprechende Nachrichten an `P_k`. Dann verfährt
   - Nach dem initialen Abgleich befinden sich alle Teilnehmer im gleichen 
     finalen Zustand.
 
+#### 3.2.3 Tabellarische Übersicht (3PC Ablauf)
+
+| Phase / Szenario | Akteur | Zustand | Ereignis / Bedingung | Aktion / Neuer Zustand | Nachricht |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Normalbetrieb** | | | | | |
+| Phase 1a | Koordinator | INIT | Start | -> WAIT | Sende VOTE_REQUEST |
+| Phase 1b | Teilnehmer | INIT | Empfang VOTE_REQUEST | Lokale Tx OK -> READY | Sende VOTE_COMMIT |
+| | | | | Lokale Tx Fehler -> ABORT | Sende VOTE_ABORT |
+| Phase 2a | Koordinator | WAIT | Alle VOTE_COMMIT | -> PRECOMMIT | Sende PREPARE_COMMIT |
+| | | | Ein VOTE_ABORT | -> ABORT | Sende GLOBAL_ABORT |
+| Phase 2b | Teilnehmer | READY | Empfang PREPARE_COMMIT | -> PRECOMMIT | Sende READY_COMMIT |
+| | | | Empfang GLOBAL_ABORT | -> ABORT | (Terminiert) |
+| Phase 3a | Koordinator | PRECOMMIT | Alle READY_COMMIT | -> COMMIT | Sende GLOBAL_COMMIT |
+| Phase 3b | Teilnehmer | PRECOMMIT | Empfang GLOBAL_COMMIT | -> COMMIT | (Terminiert) |
+| **Teilnehmer-Ausfall** | | | | | |
+| C in WAIT | Koordinator | WAIT | P_i fällt aus | -> ABORT | Sende GLOBAL_ABORT |
+| C in PRECOMMIT | Koordinator | PRECOMMIT | P_i fällt aus | -> COMMIT | Sende GLOBAL_COMMIT |
+| **Koordinator-Ausfall** | | | | | |
+| P_i in INIT | Teilnehmer | INIT | C fällt aus | -> ABORT | (Terminiert) |
+| P_i in READY | Teilnehmer | READY | C fällt aus | Wahl neuer Koordinator P_k | - |
+| P_i in PRECOMMIT | Teilnehmer | PRECOMMIT | C fällt aus | Wahl neuer Koordinator P_k | - |
+| **Terminierung (P_k)** | | | | | |
+| P_k in WAIT | Neuer Koord. | WAIT | Übernahme | -> ABORT | Sende GLOBAL_ABORT |
+| P_k in PRECOMMIT | Neuer Koord. | PRECOMMIT | Übernahme | -> COMMIT | Sende GLOBAL_COMMIT |
+| P_k in COMMIT/ABORT| Neuer Koord. | COMMIT/ABORT | Übernahme | Abgleich | (Finaler Status) |
+
 ### 3.2 Aufgabe und Anforderungen kurz und knapp
 
 - **Mindestanforderung**
