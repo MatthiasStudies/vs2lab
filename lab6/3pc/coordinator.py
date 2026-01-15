@@ -1,5 +1,6 @@
 import random
 import logging
+import time
 
 import stablelog
 
@@ -15,6 +16,7 @@ from const3PC import TIMEOUT
 
 INIT_CRASH_RATE = 0
 WAIT_CRASH_RATE = 0
+PRECOMMIT_CRASH_RATE = 1
 
 
 class Coordinator:
@@ -55,6 +57,8 @@ class Coordinator:
         self._enter_state('WAIT')
         self.channel.send_to(self.participants, VOTE_REQUEST)
 
+        time.sleep(2)
+
         if random.random() < WAIT_CRASH_RATE:
             return "Coordinator crashed in state WAIT."
 
@@ -78,8 +82,14 @@ class Coordinator:
         # all participants have locally committed
         self._enter_state('PRECOMMIT')
 
+
         # Inform all participants about precommit
         self.channel.send_to(self.participants, PREPARE_COMMIT)
+
+        time.sleep(2)
+
+        if random.random() < PRECOMMIT_CRASH_RATE:
+            return "Coordinator crashed in state PRECOMMIT."
 
         # Wait for all participants to READY_COMMIT
         yet_to_receive = list(self.participants)

@@ -16,6 +16,15 @@ import stablelog
 
 WORK_CRASH_RATE = 0
 
+STATE_ORDER = {
+    'NEW': 0,
+    'INIT': 1,
+    'READY': 2,
+    'PRECOMMIT': 3,
+    'COMMIT': 4,
+    'ABORT': 5
+}
+
 
 class Participant:
     """
@@ -33,7 +42,7 @@ class Participant:
             "participant-" + self.participant)
         self.logger = logging.getLogger("vs2lab.lab6.2pc.Participant")
         self.coordinator = {}
-        self.all_participants = {}
+        self.all_participants: set = set()
         self.state = 'NEW'
 
     @staticmethod
@@ -52,6 +61,49 @@ class Participant:
         self.coordinator = self.channel.subgroup('coordinator')
         self.all_participants = self.channel.subgroup('participant')
         self._enter_state('INIT')  # Start in local INIT state.
+
+    def handle_coordinator_crash(self):
+        participants_ids = list(self.all_participants)
+        participants_ids.sort()
+        new_coordinator = participants_ids[0]  # lowest ID becomes new coordinator
+        self.all_participants.remove(new_coordinator)
+        self.coordinator = {new_coordinator}
+
+        if new_coordinator != self.participant:
+            return False
+
+        # I am the new coordinator
+        self.logger.info("Participant {} is the new coordinator (state {})".format(self.participant, self.state))
+
+        # Send my state to all other participants
+        self.channel.send_to(self.all_participants, self.state)
+
+        # Translate participant state into coordinator state
+        if self.state == 'READY':
+            self._enter_state('WAIT')
+        elif self.state in ['COMMIT', 'ABORT', 'PRECOMMIT']:
+            pass # no state change
+            # self._enter_state(self.state)
+        else:
+            self._enter_state('ABORT')  # default to abort
+
+
+
+        if self.state == 'WAIT':
+            self._enter_state('ABORT')
+            self.channel.send_to(self.all_participants, GLOBAL_ABORT)
+            return True  # terminated
+        elif self.state == 'PRECOMMIT':
+            self._enter_state('COMMIT')
+            self.channel.send_to(self.all_participants, GLOBAL_COMMIT)
+            return True  # terminated
+        elif self.state == 'ABORT' or self.state == 'COMMIT':
+            return True  # terminated
+        else:
+            raise Exception("Unexpected state for new coordinator: {}".format(self.state))
+
+
+
 
 
 
@@ -88,19 +140,80 @@ class Participant:
         msg = self.channel.receive_from(self.coordinator, TIMEOUT)
 
         if not msg:  # Crashed coordinator
-            # Ask all processes for their decisions
-            self.channel.send_to(self.all_participants, NEED_DECISION)
             while True:
-                msg = self.channel.receive_from_any()
-                # If someone reports a final decision,
-                # we locally adjust to it
-                if msg[1] in [
-                        GLOBAL_COMMIT, GLOBAL_ABORT, LOCAL_ABORT]:
-                    decision = msg[1]
-                    break
+                terminate = self.handle_coordinator_crash()
+
+                if terminate:
+                    return "Participant {} terminated in state {} due to {}.".format(
+                        self.participant, self.state, GLOBAL_ABORT)
+
+                msg = self.channel.receive_from(self.coordinator, TIMEOUT)
+                if msg is None:
+                    continue
+
+                received_state = msg[1]
+
+                if received_state == GLOBAL_ABORT:
+                    self._enter_state('ABORT')
+                    return "Participant {} terminated in state {} due to {}.".format(
+                        self.participant, self.state, GLOBAL_ABORT)
+
+                if STATE_ORDER[received_state] >= STATE_ORDER[self.state]: # Always true i think
+                    self._enter_state(received_state)
+                break
 
         else:  # Coordinator came to a decision
-            decision = msg[1]
+            if msg[1] == GLOBAL_ABORT:
+                self._enter_state('ABORT')
+                return "Participant {} terminated in state {} due to {}.".format(
+                    self.participant, self.state, GLOBAL_ABORT)
+
+            assert msg[1] == PREPARE_COMMIT
+
+        if self.state == 'COMMIT':
+            # Already committed
+            return "Participant {} terminated in state {} due to {}.".format(
+                self.participant, self.state, GLOBAL_COMMIT)
+
+        if self.state == 'READY':
+            self._enter_state('PRECOMMIT')
+            self.channel.send_to(self.coordinator, READY_COMMIT)
+
+        assert self.state == 'PRECOMMIT'
+
+
+        msg = self.channel.receive_from(self.coordinator, TIMEOUT)
+
+        if not msg:  # Crashed coordinator
+            terminate = self.handle_coordinator_crash()
+
+            if terminate:
+                return "Participant {} terminated in state {} due to {}.".format(
+                    self.participant, self.state, GLOBAL_ABORT)
+
+            msg = self.channel.receive_from(self.coordinator, TIMEOUT)
+            assert msg is not None
+
+            received_state = msg[1]
+
+            if STATE_ORDER[received_state] >= STATE_ORDER[self.state]:
+                self._enter_state(received_state)
+
+        else:
+            if msg[1] == GLOBAL_ABORT:
+                self._enter_state('ABORT')
+                return "Participant {} terminated in state {} due to {}.".format(
+                    self.participant, self.state, GLOBAL_ABORT)
+
+            assert msg[1] == GLOBAL_COMMIT
+            self._enter_state('COMMIT')
+
+        return "Participant {} terminated in state {} due to {}.".format(
+            self.participant, self.state, GLOBAL_COMMIT)
+
+
+
+
 
         # Change local state based on the outcome of the joint commit protocol
         # Note: If the protocol has blocked due to coordinator crash,
