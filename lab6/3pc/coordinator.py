@@ -10,6 +10,12 @@ from const3PC import VOTE_COMMIT, VOTE_ABORT, READY_COMMIT
 # misc constants
 from const3PC import TIMEOUT
 
+# INIT_CRASH_RATE = 1/4
+# WAIT_CRASH_RATE = 1/3
+
+INIT_CRASH_RATE = 0
+WAIT_CRASH_RATE = 0
+
 
 class Coordinator:
     """
@@ -42,14 +48,14 @@ class Coordinator:
         self.participants = self.channel.subgroup('participant')
 
     def run(self):
-        if random.random() > 3/4:  # simulate a crash
+        if random.random() < INIT_CRASH_RATE:
             return "Coordinator crashed in state INIT."
 
         # Request local votes from all participants
         self._enter_state('WAIT')
         self.channel.send_to(self.participants, VOTE_REQUEST)
 
-        if random.random() > 2/3:  # simulate a crash
+        if random.random() < WAIT_CRASH_RATE:
             return "Coordinator crashed in state WAIT."
 
         # Collect votes from all participants
