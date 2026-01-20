@@ -15,6 +15,7 @@ from const3PC import TIMEOUT
 
 INIT_CRASH_RATE = 0
 WAIT_CRASH_RATE = 0
+PRECOMMIT_CRASH_RATE = 0
 
 
 class Coordinator:
@@ -31,7 +32,7 @@ class Coordinator:
         self.log = stablelog.create_log("coordinator-" + self.coordinator)
         self.stable_log = stablelog.create_log("coordinator-"
                                                + self.coordinator)
-        self.logger = logging.getLogger("vs2lab.lab6.2pc.Coordinator")
+        self.logger = logging.getLogger("vs2lab.lab6.3pc.Coordinator")
         self.state = None
 
     def _enter_state(self, state):
@@ -51,16 +52,15 @@ class Coordinator:
         if random.random() < INIT_CRASH_RATE:
             return "Coordinator crashed in state INIT."
 
-        # Request local votes from all participants
-        self._enter_state('WAIT')
+        self._enter_state("WAIT")
         self.channel.send_to(self.participants, VOTE_REQUEST)
 
         if random.random() < WAIT_CRASH_RATE:
             return "Coordinator crashed in state WAIT."
 
         # Collect votes from all participants
-        yet_to_receive = list(self.participants)
-        while len(yet_to_receive) > 0:
+        remaining_participants = list(self.participants)
+        while len(remaining_participants) > 0:
             msg = self.channel.receive_from(self.participants, TIMEOUT)
 
             if (not msg) or (msg[1] == VOTE_ABORT):
@@ -68,12 +68,10 @@ class Coordinator:
                 self._enter_state('ABORT')
                 # Inform all participants about global abort
                 self.channel.send_to(self.participants, GLOBAL_ABORT)
-                return "Coordinator {} terminated in state ABORT. Reason: {}."\
-                    .format(self.coordinator, reason)
-
+                return "Coordinator {} terminated in state ABORT. Reason: {}.".format(self.coordinator, reason)
             else:
                 assert msg[1] == VOTE_COMMIT
-                yet_to_receive.remove(msg[0])
+                remaining_participants.remove(msg[0])
 
         # all participants have locally committed
         self._enter_state('PRECOMMIT')
@@ -81,22 +79,76 @@ class Coordinator:
         # Inform all participants about precommit
         self.channel.send_to(self.participants, PREPARE_COMMIT)
 
-        # Wait for all participants to READY_COMMIT
-        yet_to_receive = list(self.participants)
-        while len(yet_to_receive) > 0:
-            msg = self.channel.receive_from(self.participants, TIMEOUT)
+        if random.random() < PRECOMMIT_CRASH_RATE:
+            return "Coordinator crashed in state PRECOMMIT."
 
-            # TODO: What about non-READY-TO-COMMIT?
+        # Wait for all participants to READY_COMMIT
+        remaining_participants = list(self.participants)
+        while len(remaining_participants) > 0:
+            msg = self.channel.receive_from(self.participants, TIMEOUT)
             if not msg:
-                # TODO
-                continue
-            elif msg[1] == READY_COMMIT:
-                yet_to_receive.remove(msg[0])
+                break
+
+            assert msg[1] == READY_COMMIT
+            remaining_participants.remove(msg[0])
 
         # all participants are ready to commit
         self._enter_state('COMMIT')
-
         # Inform all participants about global commit
         self.channel.send_to(self.participants, GLOBAL_COMMIT)
-        return "Coordinator {} terminated in state COMMIT."\
-            .format(self.coordinator)
+
+        return "Coordinator {} terminated in state COMMIT.".format(self.coordinator)
+
+
+        # if random.random() < INIT_CRASH_RATE:
+        #     return "Coordinator crashed in state INIT."
+        #
+        # # Request local votes from all participants
+        # self._enter_state('WAIT')
+        # self.channel.send_to(self.participants, VOTE_REQUEST)
+        #
+        # if random.random() < WAIT_CRASH_RATE:
+        #     return "Coordinator crashed in state WAIT."
+        #
+        # # Collect votes from all participants
+        # yet_to_receive = list(self.participants)
+        # while len(yet_to_receive) > 0:
+        #     msg = self.channel.receive_from(self.participants, TIMEOUT)
+        #
+        #     if (not msg) or (msg[1] == VOTE_ABORT):
+        #         reason = "timeout" if not msg else "local_abort from " + msg[0]
+        #         self._enter_state('ABORT')
+        #         # Inform all participants about global abort
+        #         self.channel.send_to(self.participants, GLOBAL_ABORT)
+        #         return "Coordinator {} terminated in state ABORT. Reason: {}."\
+        #             .format(self.coordinator, reason)
+        #
+        #     else:
+        #         assert msg[1] == VOTE_COMMIT
+        #         yet_to_receive.remove(msg[0])
+        #
+        # # all participants have locally committed
+        # self._enter_state('PRECOMMIT')
+        #
+        # # Inform all participants about precommit
+        # self.channel.send_to(self.participants, PREPARE_COMMIT)
+        #
+        # # Wait for all participants to READY_COMMIT
+        # yet_to_receive = list(self.participants)
+        # while len(yet_to_receive) > 0:
+        #     msg = self.channel.receive_from(self.participants, TIMEOUT)
+        #
+        #     # TODO: What about non-READY-TO-COMMIT?
+        #     if not msg:
+        #         # TODO
+        #         continue
+        #     elif msg[1] == READY_COMMIT:
+        #         yet_to_receive.remove(msg[0])
+        #
+        # # all participants are ready to commit
+        # self._enter_state('COMMIT')
+        #
+        # # Inform all participants about global commit
+        # self.channel.send_to(self.participants, GLOBAL_COMMIT)
+        # return "Coordinator {} terminated in state COMMIT."\
+        #     .format(self.coordinator)
