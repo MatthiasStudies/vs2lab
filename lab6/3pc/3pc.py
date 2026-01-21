@@ -16,7 +16,7 @@ from context import lab_channel, lab_logging
 
 lab_logging.setup(stream_level=logging.INFO, file_level=logging.DEBUG)
 
-logger = logging.getLogger("vs2lab.lab6.2pc.2pc")
+logger = logging.getLogger("vs2lab.lab6.3pc.3pc")
 
 
 def create_and_run(num_bits, proc_class, enter_bar, run_bar):
