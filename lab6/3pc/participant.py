@@ -14,7 +14,15 @@ import stablelog
 
 # WORK_CRASH_RATE = 1/3
 
-WORK_CRASH_RATE = 1/3
+STATE_ORDER = {
+    'INIT': 0,
+    'READY': 1,
+    'PRECOMMIT': 2,
+    'COMMIT': 3,
+    'ABORT': 4
+}
+
+WORK_FAILURE_RATE = 1/2
 
 
 class Participant:
@@ -32,18 +40,18 @@ class Participant:
         self.stable_log = stablelog.create_log(
             "participant-" + self.participant)
         self.logger = logging.getLogger("vs2lab.lab6.3pc.Participant")
-        self.coordinator = {}
+        self.coordinator: set = set()
         self.all_participants: set = set()
         self.state = 'NEW'
 
     @staticmethod
     def _do_work():
         # Simulate local activities that may succeed or not
-        return random.random() > WORK_CRASH_RATE
+        return random.random() > WORK_FAILURE_RATE
 
     def _enter_state(self, state):
         self.stable_log.info(state)  # Write to recoverable persistant log file
-        self.logger.info("Participant {} entered state {}."
+        self.logger.info("[Participant {}] Entered state {}."
                          .format(self.participant, state))
         self.state = state
 
@@ -60,6 +68,20 @@ class Participant:
     def _become_new_coordinator(self):
         self.logger.info("[Participant {}] I am the new coordinator.".format(
             self.participant))
+
+        self.channel.send_to(self.all_participants, self.state)
+
+        # Waiting for states from all participants
+        participants_states = {}
+        remaining_participants = list(self.all_participants)
+        while len(remaining_participants) > 0:
+            msg = self.channel.receive_from(self.all_participants, TIMEOUT)
+            assert msg is not None
+
+            part_state = msg[1]
+            participants_states[msg[0]] = part_state
+            remaining_participants.remove(msg[0])
+
 
         decision = None
 
@@ -88,6 +110,8 @@ class Participant:
     def on_coordinator_timeout(self):
         self.logger.info("[Participant {}] Coordinator timeout in state {}".format(self.participant, self.state))
 
+        # May be better after new coordinator election, since the new coordinator could be in INIT state
+        # while other participants are already in READY
         if self.state == 'INIT':
             self._enter_state('ABORT')
             return "Participant {} terminated in state {} due to {}.".format(
@@ -100,10 +124,26 @@ class Participant:
             if new_coordinator == self.participant:
                 return self._become_new_coordinator()
 
+            self.logger.info("[Participant {}] Waiting for state from {}.".format(
+                self.participant, new_coordinator))
+            msg = self.channel.receive_from([new_coordinator], TIMEOUT)
+            if not msg:
+                # Timeout - try next coordinator
+                continue
+
+            coord_state = msg[1]
+            if STATE_ORDER[coord_state] > STATE_ORDER[self.state]:
+                self.logger.info("[Participant {}] Updating state from {} to {}.".format(
+                    self.participant, self.state, coord_state))
+                self._enter_state(coord_state)
+
+            self.channel.send_to([new_coordinator], self.state)
+
             self.logger.info("[Participant {}] Asking new coordinator {} for decision.".format(
                 self.participant, new_coordinator))
             msg = self.channel.receive_from([new_coordinator], TIMEOUT)
             if not msg:
+                # Timeout - try next coordinator
                 continue
 
             if msg[1] == GLOBAL_COMMIT:

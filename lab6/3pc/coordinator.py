@@ -10,8 +10,6 @@ from const3PC import VOTE_COMMIT, VOTE_ABORT, READY_COMMIT
 # misc constants
 from const3PC import TIMEOUT
 
-# INIT_CRASH_RATE = 1/4
-# WAIT_CRASH_RATE = 1/3
 
 INIT_CRASH_RATE = 0
 WAIT_CRASH_RATE = 0
